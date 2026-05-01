@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyberpunk Shard Terminal v2.3</title>
+    <style>
+        /* --- FONTS & VARIABLES --- */
+        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&display=swap');
+
+        :root {
+            --cp-red: #ff003c;
+            --cp-red-dim: rgba(255, 0, 60, 0.2);
+            --cp-dark: #0d0003;
+            --shard-face: rgba(20, 0, 5, 0.75);
+            --shard-edge: #4a0011; 
+            --font-main: 'Rajdhani', sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--cp-dark);
+            color: var(--cp-red);
+            font-family: var(--font-main);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            height: 100vh;
+            background-image: 
+                linear-gradient(rgba(255, 0, 60, 0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 0, 60, 0.04) 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+
+        .header {
+            position: absolute;
+            top: 30px;
+            left: 40px;
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: 3px;
+            text-shadow: 0 0 8px var(--cp-red);
+        }
+
+        /* --- LAYOUT GRID --- */
+        .terminal-layout {
+            display: flex;
+            width: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding-top: 80px;
+            height: 80vh;
+        }
+
+        .left-panel {
+            flex: 2;
+            display: flex;
+            justify-content: flex-start;
+            gap: 40px;
+            overflow-x: auto;
+            padding: 20px 40px 60px 40px;
+            height: 100%;
+        }
+
+        .left-panel::-webkit-scrollbar {
+            height: 8px;
+        }
+        .left-panel::-webkit-scrollbar-track {
+            background: rgba(255, 0, 60, 0.05);
+            border: 1px solid var(--cp-red-dim);
+        }
+        .left-panel::-webkit-scrollbar-thumb {
+            background: var(--cp-red-dim);
+            border: 1px solid var(--cp-red);
+        }
+        .left-panel::-webkit-scrollbar-thumb:hover {
+            background: var(--cp-red);
+        }
+
+        .right-panel {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            padding-top: 20px;
+            min-width: 380px;
+        }
+
+        /* --- THE STACK CONTAINER --- */
+        .shard-rack {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            perspective: 1200px; 
+            width: 340px;
+            flex-shrink: 0;
+        }
+
+        /* --- THE WRAPPER / HITBOX --- */
+        .shard {
+            position: relative;
+            width: 100%;
+            height: 85px;
+            margin-bottom: -50px; 
+            cursor: pointer;
+            z-index: 1;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            transform-style: preserve-3d;
+        }
+
+        /* --- SHARD VISUALS (FACE & THICKNESS) --- */
+        .shard-face, .shard-thickness {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px);
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            transform-origin: bottom center;
+        }
+
+        .shard-thickness {
+            background: var(--shard-edge);
+            transform: rotateX(55deg) translateY(8px) translateZ(-5px);
+            z-index: 1;
+            filter: drop-shadow(0px 20px 15px rgba(0, 0, 0, 0.9));
+        }
+
+        .shard-face {
+            background: var(--shard-face);
+            border: 1px solid var(--cp-red);
+            backdrop-filter: blur(8px);
+            transform: rotateX(55deg) translateZ(0px);
+            z-index: 2;
+        }
+
+        .shard-face::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: 
+                radial-gradient(circle at 10px 10px, var(--cp-red) 1px, transparent 1.5px),
+                linear-gradient(90deg, var(--cp-red) 1px, transparent 1px);
+            background-size: 20px 20px, 20px 20px;
+            background-position: 0 0, 10px 10px;
+            opacity: 0.15;
+            pointer-events: none;
+        }
+
+        /* --- DELETE BUTTON (FIXED 3D HITBOX) --- */
+        .delete-btn {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: rgba(255, 0, 60, 0.1);
+            border: none;
+            border-left: 1px solid var(--cp-red);
+            border-bottom: 1px solid var(--cp-red);
+            color: var(--cp-red);
+            font-size: 0.9rem;
+            font-family: var(--font-main);
+            font-weight: bold;
+            padding: 8px 16px;
+            cursor: pointer;
+            z-index: 100;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s;
+        }
+
+        .shard:hover .delete-btn {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .delete-btn:hover {
+            background: var(--cp-red);
+            color: var(--cp-dark);
+            box-shadow: 0 0 15px var(--cp-red);
+        }
+
+        /* --- CSS MAGIC: THE SPREAD EFFECT --- */
+        .shard:hover {
+            margin-bottom: -10px; 
+            margin-top: 5px;      
+            z-index: 100; /* Forces the active shard to the very front */
+        }
+        
+        .shard:hover .shard-face {
+            /* Added translateZ(20px) to pull the hit-box physically forward out of the screen */
+            transform: rotateX(10deg) translateY(-10px) translateZ(20px);
+            background: rgba(50, 0, 15, 0.95);
+            box-shadow: inset 0 0 20px rgba(255, 0, 60, 0.3);
+        }
+        
+        .shard:hover .shard-thickness {
+            transform: rotateX(10deg) translateY(-5px) translateZ(10px);
+            background: var(--cp-red); 
+        }
+
+        .shard:has(+ .shard:hover) {
+            margin-bottom: -20px; 
+        }
+        .shard:has(+ .shard:hover) .shard-face {
+            transform: rotateX(35deg) translateY(-5px);
+        }
+        .shard:has(+ .shard:hover) .shard-thickness {
+            transform: rotateX(35deg) translateY(3px) translateZ(-5px);
+        }
+
+        .shard:hover + .shard {
+            margin-top: 5px; 
+        }
+        .shard:hover + .shard .shard-face {
+            transform: rotateX(35deg) translateY(5px);
+        }
+        .shard:hover + .shard .shard-thickness {
+            transform: rotateX(35deg) translateY(13px) translateZ(-5px);
+        }
+
+        /* --- CONTENT STYLING --- */
+        .shard-content {
+            padding: 10px 20px;
+            position: relative;
+            z-index: 3;
+            pointer-events: none; 
+        }
+
+        .shard-content h3 {
+            margin: 0 0 5px 0;
+            font-size: 1.25rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-shadow: 0 0 4px var(--cp-red);
+        }
+
+        .shard-content p {
+            margin: 0;
+            font-size: 0.9rem;
+            color: #ff99aa;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            opacity: 0.8;
+            padding-right: 60px; /* Leaves space for the larger delete button */
+        }
+
+        /* --- SHARD CREATION FORM --- */
+        .creation-form {
+            background: rgba(10, 0, 3, 0.8);
+            border: 1px solid var(--cp-red);
+            padding: 30px;
+            width: 350px;
+            clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%, 0 20px);
+            box-shadow: inset 0 0 15px var(--cp-red-dim);
+            position: relative;
+        }
+
+        .creation-form::before {
+            content: 'ENCODE_NEW_SHARD';
+            margin-top: 4px;
+            margin-left: -15px;
+            position: absolute;
+            top: -10px;
+            left: 20px;
+            background: var(--cp-dark);
+            padding: 0 10px;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-size: 1rem;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        .form-group input, .form-group textarea {
+            background: transparent;
+            border: 1px solid #550015;
+            color: var(--cp-red);
+            font-family: var(--font-main);
+            padding: 10px;
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.2s;
+            resize: none;
+        }
+
+        .form-group input:focus, .form-group textarea:focus {
+            border-color: var(--cp-red);
+            box-shadow: inset 0 0 8px var(--cp-red-dim);
+            background: rgba(255,0,60,0.05);
+        }
+
+        .submit-btn {
+            background: transparent;
+            color: var(--cp-red);
+            border: 1px solid var(--cp-red);
+            padding: 10px 20px;
+            font-family: var(--font-main);
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            text-transform: uppercase;
+            transition: all 0.2s;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+        }
+
+        .submit-btn:hover {
+            background: var(--cp-red);
+            color: var(--cp-dark);
+            box-shadow: 0 0 15px var(--cp-red);
+        }
+
+        /* --- MODAL (OPEN NOTE) --- */
+        .modal {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            z-index: 1000;
+        }
+
+        .modal.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .modal-content {
+            width: 550px;
+            max-width: 90%;
+            background: var(--shard-face);
+            border: 2px solid var(--cp-red);
+            padding: 40px;
+            clip-path: polygon(30px 0, 100% 0, 100% calc(100% - 30px), calc(100% - 30px) 100%, 0 100%, 0 30px);
+            box-shadow: 0 0 40px rgba(255, 0, 60, 0.3);
+            position: relative;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 20px; right: 20px;
+            background: transparent;
+            color: var(--cp-red);
+            border: 1px solid var(--cp-red);
+            padding: 5px 15px;
+            font-family: var(--font-main);
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
+        }
+
+        .close-btn:hover {
+            background: var(--cp-red);
+            color: var(--cp-dark);
+        }
+
+        #modalTitle {
+            font-size: 2.2rem;
+            text-transform: uppercase;
+            margin-top: 0;
+            border-bottom: 1px solid var(--cp-red-dim);
+            padding-bottom: 10px;
+            text-shadow: 0 0 5px var(--cp-red);
+        }
+
+        #modalText {
+            font-size: 1.15rem;
+            line-height: 1.6;
+            color: #ff99aa;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">DB // SHARD_DRIVE v2.3</div>
+
+    <div class="terminal-layout">
+        <div class="left-panel" id="racksContainer"></div>
+
+        <div class="right-panel">
+            <form class="creation-form" id="shardForm">
+                <div class="form-group">
+                    <label for="shardTitle">Data Title</label>
+                    <input type="text" id="shardTitle" required autocomplete="off" placeholder="Enter Header...">
+                </div>
+                <div class="form-group">
+                    <label for="shardDesc">Memory Block</label>
+                    <textarea id="shardDesc" rows="5" required placeholder="Enter payload data..."></textarea>
+                </div>
+                <button type="submit" class="submit-btn">Compile Shard</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal" id="noteModal">
+        <div class="modal-content">
+            <button class="close-btn" id="closeModal">CLOSE</button>
+            <h2 id="modalTitle">TITLE</h2>
+            <div id="modalText">Content goes here...</div>
+        </div>
+    </div>
+
+    <script>
+        // --- DATA STATE & LOCAL STORAGE ---
+        const STORAGE_KEY = 'cyberpunk_shards';
+        let notesArray = JSON.parse(localStorage.getItem(STORAGE_KEY));
+
+        if (!notesArray || notesArray.length === 0) {
+            notesArray = [
+                { id: Date.now() + 1, title: "Project Cynosure", content: "Facility lockdown initiated. Militech forces closing in. If anyone reads this, the core is unstable. Do not attempt manual override." },
+                { id: Date.now() + 2, title: "Voodoo Boys Encrypt", content: "Bypassed the ICE on the secondary subnet. Placide is looking for the databank. Keep it hidden in the Pacifica node." }
+            ];
+            saveNotes();
+        }
+
+        function saveNotes() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(notesArray));
+        }
+
+        // --- WEB AUDIO API SYNTHESIZER ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new AudioContext();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playTechSound(type) {
+            initAudio();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            const now = audioCtx.currentTime;
+
+            if (type === 'open') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(800, now + 0.15);
+                gainNode.gain.setValueAtTime(0.05, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } else if (type === 'close') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.exponentialRampToValueAtTime(80, now + 0.2);
+                gainNode.gain.setValueAtTime(0.05, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+                osc.start(now);
+                osc.stop(now + 0.2);
+            } else if (type === 'compile') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.setValueAtTime(1200, now + 0.05);
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.linearRampToValueAtTime(0, now + 0.15);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } else if (type === 'delete') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(50, now + 0.3);
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            }
+        }
+
+        // --- DOM ELEMENTS ---
+        const racksContainer = document.getElementById('racksContainer');
+        const shardForm = document.getElementById('shardForm');
+        const titleInput = document.getElementById('shardTitle');
+        const descInput = document.getElementById('shardDesc');
+        
+        const modal = document.getElementById('noteModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalText = document.getElementById('modalText');
+        const closeModal = document.getElementById('closeModal');
+
+        // --- RENDER LOGIC ---
+        function renderShards() {
+            racksContainer.innerHTML = ''; 
+
+            const chunkSize = 12;
+            for (let i = 0; i < notesArray.length; i += chunkSize) {
+                const chunk = notesArray.slice(i, i + chunkSize);
+                
+                const rack = document.createElement('div');
+                rack.className = 'shard-rack';
+
+                chunk.forEach(note => {
+                    const previewText = note.content.length > 40 ? note.content.substring(0, 40) + '...' : note.content;
+
+                    const shard = document.createElement('div');
+                    shard.className = 'shard';
+                    
+                    shard.innerHTML = `
+                        <div class="shard-thickness"></div>
+                        <div class="shard-face">
+                            <button class="delete-btn">[ DEL ]</button>
+                            <div class="shard-content">
+                                <h3>${note.title}</h3>
+                                <p>${previewText}</p>
+                            </div>
+                        </div>
+                    `;
+
+                    // The delegate listener uses .closest() so clicking anywhere inside the button works
+                    shard.addEventListener('click', (e) => {
+                        if (e.target.closest('.delete-btn')) {
+                            deleteNote(note.id);
+                        } else {
+                            modalTitle.innerText = note.title;
+                            modalText.innerHTML = note.content.replace(/\n/g, '<br>');
+                            modal.classList.add('active');
+                            playTechSound('open');
+                        }
+                    });
+
+                    rack.appendChild(shard);
+                });
+
+                racksContainer.appendChild(rack);
+            }
+        }
+
+        function deleteNote(id) {
+            notesArray = notesArray.filter(note => note.id !== id);
+            saveNotes();
+            playTechSound('delete');
+            renderShards();
+        }
+
+        // --- EVENT LISTENERS ---
+        shardForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            const title = titleInput.value.trim();
+            const desc = descInput.value.trim();
+
+            if (title && desc) {
+                const newNote = {
+                    id: Date.now(),
+                    title: title,
+                    content: desc
+                };
+                
+                notesArray.push(newNote);
+                saveNotes();
+                
+                playTechSound('compile');
+                renderShards();
+
+                titleInput.value = '';
+                descInput.value = '';
+                titleInput.focus();
+                
+                racksContainer.scrollLeft = racksContainer.scrollWidth;
+            }
+        });
+
+        closeModal.addEventListener('click', () => {
+            modal.classList.remove('active');
+            playTechSound('close');
+        });
+
+        modal.addEventListener('click', (e) => {
+            if(e.target === modal) {
+                modal.classList.remove('active');
+                playTechSound('close');
+            }
+        });
+
+        document.body.addEventListener('click', initAudio, { once: true });
+        renderShards();
+
+    </script>
+</body>
+</html>
